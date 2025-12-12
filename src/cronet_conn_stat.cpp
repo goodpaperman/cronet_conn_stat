@@ -38,6 +38,7 @@ void on_read_completed(Cronet_UrlRequestCallback* callback,
     if (bytes_read > 0) {
         const char* data = static_cast<const char*>(Cronet_Buffer_GetData(buffer));
         std::cout << "Read " << bytes_read << " bytes" << std::endl;
+        std::cout << data << std::endl; 
     }
 
     // 释放当前buffer
@@ -224,21 +225,18 @@ int main() {
         std::cout << "setup request finished listener failed, no connection statistic provided" << std::endl;
     }
 
-    // std::this_thread::sleep_for(std::chrono::seconds(50));
-    std::cout << "after connect to debugger" << std::endl;
-    
     // 6. 创建并启动请求
     Cronet_UrlRequestPtr request = Cronet_UrlRequest_Create();
     Cronet_UrlRequest_InitWithParams(request, engine, 
                                      "http://httpbin.org/json", 
                                      req_params, callback, executor);
     Cronet_UrlRequest_Start(request);
-    std::cout << "start request" << std::endl;
+    // std::cout << "start request" << std::endl;
     
     // 7. 等待请求完成（简化演示，实际应用需事件循环）
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+    std::this_thread::sleep_for(std::chrono::seconds(15));
     
-    std::cout << "request done" << std::endl;
+    // std::cout << "request done" << std::endl;
     // 8. 清理资源
     Cronet_UrlRequest_Destroy(request);
     Cronet_HttpHeader_Destroy(header);

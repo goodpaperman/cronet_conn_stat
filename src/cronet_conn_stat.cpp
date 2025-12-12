@@ -3,6 +3,11 @@
 #include <thread>
 #include <chrono>
 #include <map>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
+#include <functional>
 
 std::map<Cronet_UrlResponseInfoPtr, Cronet_UrlRequestPtr> rr_map; 
 
@@ -19,6 +24,9 @@ void on_response_started(Cronet_UrlRequestCallback* callback,
                         Cronet_UrlRequest* request,
                         Cronet_UrlResponseInfo* info) {
     std::cout << "Response started" << std::endl;
+    Cronet_Buffer* buffer = Cronet_Buffer_Create();
+    Cronet_Buffer_InitWithAlloc(buffer, 4096); // 4KB缓冲区
+    Cronet_UrlRequest_Read(request, buffer);
 }
 
 void on_read_completed(Cronet_UrlRequestCallback* callback,
@@ -95,6 +103,86 @@ void on_request_finished_listener(
     }
 }
 
+std::atomic<bool> request_completed{false};
+
+// 任务队列和线程管理
+class ExecutorThread {
+private:
+    std::queue<std::function<void()>> task_queue_;
+    std::mutex queue_mutex_;
+    std::condition_variable condition_;
+    std::thread worker_thread_;
+    std::atomic<bool> stop_{false};
+
+public:
+    ExecutorThread() {
+        worker_thread_ = std::thread([this]() {
+            this->run();
+        });
+    }
+
+    ~ExecutorThread() {
+        stop_ = true;
+        condition_.notify_all();
+        if (worker_thread_.joinable()) {
+            worker_thread_.join();
+        }
+    }
+
+    void postTask(std::function<void()> task) {
+        {
+            std::lock_guard<std::mutex> lock(queue_mutex_);
+            task_queue_.push(std::move(task));
+        }
+        condition_.notify_one();
+    }
+
+private:
+    void run() {
+        while (!stop_) {
+            std::function<void()> task;
+            {
+                std::unique_lock<std::mutex> lock(queue_mutex_);
+                condition_.wait(lock, [this]() {
+                    return stop_ || !task_queue_.empty();
+                });
+
+                if (stop_ && task_queue_.empty()) {
+                    return;
+                }
+
+                task = std::move(task_queue_.front());
+                task_queue_.pop();
+            }
+
+            // 执行任务
+            if (task) {
+                try {
+                    task();
+                } catch (const std::exception& e) {
+                    std::cerr << "Executor task error: " << e.what() << std::endl;
+                }
+            }
+        }
+    }
+};
+
+void custom_executor_func(Cronet_Executor *executor, Cronet_Runnable *cronet_task) {
+    ExecutorThread* et = (ExecutorThread*)Cronet_Executor_GetClientContext(executor); 
+    if (!et) {
+        std::cerr << "Executor not initialized!" << std::endl;
+        return;
+    }
+
+    // 将Cronet的任务包装成std::function
+    if (cronet_task) {
+        et->postTask([cronet_task]() {
+            // 执行Cronet任务
+            Cronet_Runnable_Run(cronet_task);
+        });
+    }
+}
+
 int main() {
     // 1. 创建引擎
     Cronet_EnginePtr engine = Cronet_Engine_Create();
@@ -121,8 +209,10 @@ int main() {
     Cronet_HttpHeader_value_set(header, "Cronet-C-Client");
     Cronet_UrlRequestParams_request_headers_add(req_params, header);
     
-    // 5. 创建执行器
-    Cronet_ExecutorPtr executor = Cronet_Executor_CreateWith(NULL);
+    // 4. 创建执行器
+    auto executor_thread = new ExecutorThread; 
+    Cronet_ExecutorPtr executor = Cronet_Executor_CreateWith(custom_executor_func);
+    Cronet_Executor_SetClientContext(executor, executor_thread); 
     
     // 5. 创建监听器
     Cronet_RequestFinishedInfoListenerPtr listener = Cronet_RequestFinishedInfoListener_CreateWith(on_request_finished_listener);
@@ -134,7 +224,7 @@ int main() {
         std::cout << "setup request finished listener failed, no connection statistic provided" << std::endl;
     }
 
-    std::this_thread::sleep_for(std::chrono::seconds(50));
+    // std::this_thread::sleep_for(std::chrono::seconds(50));
     std::cout << "after connect to debugger" << std::endl;
     
     // 6. 创建并启动请求
@@ -146,9 +236,7 @@ int main() {
     std::cout << "start request" << std::endl;
     
     // 7. 等待请求完成（简化演示，实际应用需事件循环）
-    for (int i = 0; i < 10; ++i) {
-        std::this_thread::sleep_for(std::chrono::seconds(5));
-    }
+    std::this_thread::sleep_for(std::chrono::seconds(5));
     
     std::cout << "request done" << std::endl;
     // 8. 清理资源
@@ -159,6 +247,7 @@ int main() {
         Cronet_Engine_RemoveRequestFinishedListener(engine, listener);
         Cronet_RequestFinishedInfoListener_Destroy(listener);
     }
+    delete executor_thread; 
     Cronet_Executor_Destroy(executor);
     Cronet_UrlRequestCallback_Destroy(callback);
     Cronet_EngineParams_Destroy(params);

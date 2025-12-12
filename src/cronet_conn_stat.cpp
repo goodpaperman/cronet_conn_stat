@@ -17,6 +17,8 @@ void on_redirect_received(Cronet_UrlRequestCallback* callback,
                          Cronet_UrlResponseInfo* info,
                          const char* new_location) {
     std::cout << "Redirect to: " << new_location << std::endl;
+    rr_map[info] = request; 
+
     Cronet_UrlRequest_FollowRedirect(request);
 }
 
@@ -24,6 +26,7 @@ void on_response_started(Cronet_UrlRequestCallback* callback,
                         Cronet_UrlRequest* request,
                         Cronet_UrlResponseInfo* info) {
     std::cout << "Response started" << std::endl;
+    rr_map[info] = request; 
     Cronet_Buffer* buffer = Cronet_Buffer_Create();
     Cronet_Buffer_InitWithAlloc(buffer, 4096); // 4KB缓冲区
     Cronet_UrlRequest_Read(request, buffer);
@@ -41,6 +44,7 @@ void on_read_completed(Cronet_UrlRequestCallback* callback,
         std::cout << data << std::endl; 
     }
 
+    rr_map[info] = request; 
     // 释放当前buffer
     Cronet_Buffer_Destroy(buffer);
 
@@ -58,6 +62,7 @@ void on_succeeded(Cronet_UrlRequestCallback* callback,
                  Cronet_UrlRequest* request,
                  Cronet_UrlResponseInfo* info) {
     std::cout << "Request succeeded" << std::endl;
+    rr_map[info] = request; 
 }
 
 void on_failed(Cronet_UrlRequestCallback* callback,
@@ -65,12 +70,14 @@ void on_failed(Cronet_UrlRequestCallback* callback,
               Cronet_UrlResponseInfo* info,
               Cronet_Error* error) {
     std::cout << "Request failed" << std::endl;
+    rr_map[info] = request; 
 }
 
 void on_canceled(Cronet_UrlRequestCallback* callback,
                 Cronet_UrlRequest* request,
                 Cronet_UrlResponseInfo* info) {
     std::cout << "Request cancelled" << std::endl;
+    rr_map[info] = request; 
 }
 
 void on_request_finished(Cronet_ClientContext obj, int64_t connect) 
@@ -84,6 +91,7 @@ void on_request_finished_listener(
     Cronet_UrlResponseInfoPtr response_info,
     Cronet_ErrorPtr error)
 {
+    std::cout << "request finished listen" << std::endl; 
     int64_t connect = 0;
     Cronet_MetricsPtr metrics = Cronet_RequestFinishedInfo_metrics_get(request_info);
     if (metrics) {
@@ -93,7 +101,11 @@ void on_request_finished_listener(
             int64_t start_ms = Cronet_DateTime_value_get(start);
             int64_t end_ms = Cronet_DateTime_value_get(end);
             connect = (start_ms > 0 && end_ms > 0) ? (end_ms - start_ms) : 0;
+            std::cout << "has metrics, connect = " << connect << std::endl; 
         }
+    }
+    else {
+        std::cout << "no metrics" << std::endl; 
     }
 
     auto it = rr_map.find(response_info);
@@ -101,6 +113,9 @@ void on_request_finished_listener(
         Cronet_UrlRequestPtr req = it->second;
         Cronet_ClientContext obj = Cronet_UrlRequest_GetClientContext(req);
         on_request_finished(obj, connect);
+    }
+    else { 
+        std::cout << "not find " << response_info << std::endl; 
     }
 }
 
@@ -241,13 +256,13 @@ int main() {
     Cronet_UrlRequest_Destroy(request);
     Cronet_HttpHeader_Destroy(header);
     Cronet_UrlRequestParams_Destroy(req_params);
+    Cronet_UrlRequestCallback_Destroy(callback);
     if (listener) {
         Cronet_Engine_RemoveRequestFinishedListener(engine, listener);
         Cronet_RequestFinishedInfoListener_Destroy(listener);
     }
     delete executor_thread; 
     Cronet_Executor_Destroy(executor);
-    Cronet_UrlRequestCallback_Destroy(callback);
     Cronet_EngineParams_Destroy(params);
     Cronet_Engine_Destroy(engine);
     

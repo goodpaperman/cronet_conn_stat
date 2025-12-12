@@ -95,6 +95,13 @@ void on_request_finished_listener(
     }
 }
 
+// 修复执行器
+void executor_function(void* task) {
+    auto* callback = static_cast<base::OnceClosure*>(task);
+    std::move(*callback).Run();
+    delete callback;
+}
+
 int main() {
     // 1. 创建引擎
     Cronet_EnginePtr engine = Cronet_Engine_Create();
@@ -122,7 +129,7 @@ int main() {
     Cronet_UrlRequestParams_request_headers_add(req_params, header);
     
     // 5. 创建执行器
-    Cronet_ExecutorPtr executor = Cronet_Executor_CreateWith(NULL);
+    Cronet_ExecutorPtr executor = Cronet_Executor_CreateWith(executor_function);
     
     // 6. 创建监听器
     Cronet_RequestFinishedInfoListenerPtr listener = Cronet_RequestFinishedInfoListener_CreateWith(on_request_finished_listener);

@@ -15,7 +15,8 @@ SET(SRC_FILES ${Main_SRC_FILES})
 # add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 include_directories(.)
 include_directories(../include)
-link_directories(../lib/mac/arm64)
+# link_directories(../lib/mac/arm64)
+link_directories(../lib/win/x64)
 
 set(LIBPATH_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -24,5 +25,6 @@ add_executable(cronet_conn_stat ${SRC_FILES})
 target_link_libraries(cronet_conn_stat
     # rt # for shm_open/close/...
         netbase
+        stdc++
         )
 

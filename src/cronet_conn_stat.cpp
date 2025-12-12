@@ -101,7 +101,7 @@ int main() {
     Cronet_EngineParamsPtr params = Cronet_EngineParams_Create();
     Cronet_Engine_StartWithParams(engine, params);
     
-    // 3. 创建回调
+    // 2. 创建回调
     Cronet_UrlRequestCallbackPtr callback = Cronet_UrlRequestCallback_CreateWith(
         on_redirect_received,
         on_response_started,
@@ -111,7 +111,7 @@ int main() {
         on_canceled
     );
     
-    // 4. 配置请求
+    // 3. 配置请求
     Cronet_UrlRequestParamsPtr req_params = Cronet_UrlRequestParams_Create();
     Cronet_UrlRequestParams_http_method_set(req_params, "GET");
     
@@ -121,10 +121,10 @@ int main() {
     Cronet_HttpHeader_value_set(header, "Cronet-C-Client");
     Cronet_UrlRequestParams_request_headers_add(req_params, header);
     
-    // 5. 创建执行器
+    // 4. 创建执行器
     Cronet_ExecutorPtr executor = Cronet_Executor_CreateWith(NULL);
     
-    // 6. 创建监听器
+    // 5. 创建监听器
     Cronet_RequestFinishedInfoListenerPtr listener = Cronet_RequestFinishedInfoListener_CreateWith(on_request_finished_listener);
     if (listener) {
         Cronet_Engine_AddRequestFinishedListener(engine, listener, executor);
@@ -133,20 +133,22 @@ int main() {
     else {
         std::cout << "setup request finished listener failed, no connection statistic provided" << std::endl;
     }
+
+    std::this_thread::sleep_for(std::chrono::seconds(50));
     
-    // 7. 创建并启动请求
+    // 6. 创建并启动请求
     Cronet_UrlRequestPtr request = Cronet_UrlRequest_Create();
     Cronet_UrlRequest_InitWithParams(request, engine, 
-                                     "http://httpbin.org/redirect/3",  // 重定向3次
+                                     "http://httpbin.org/json", 
                                      req_params, callback, executor);
     Cronet_UrlRequest_Start(request);
     std::cout << "start request" << std::endl;
     
-    // 8. 等待请求完成（简化演示，实际应用需事件循环）
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+    // 7. 等待请求完成（简化演示，实际应用需事件循环）
+    std::this_thread::sleep_for(std::chrono::seconds(50));
     
     std::cout << "request done" << std::endl;
-    // 9. 清理资源
+    // 8. 清理资源
     Cronet_UrlRequest_Destroy(request);
     Cronet_HttpHeader_Destroy(header);
     Cronet_UrlRequestParams_Destroy(req_params);

@@ -121,7 +121,7 @@ int main() {
     Cronet_HttpHeader_value_set(header, "Cronet-C-Client");
     Cronet_UrlRequestParams_request_headers_add(req_params, header);
     
-    // 4. 创建执行器
+    // 5. 创建执行器
     Cronet_ExecutorPtr executor = Cronet_Executor_CreateWith(NULL);
     
     // 5. 创建监听器
@@ -135,6 +135,7 @@ int main() {
     }
 
     std::this_thread::sleep_for(std::chrono::seconds(50));
+    std::cout << "after connect to debugger" << std::endl;
     
     // 6. 创建并启动请求
     Cronet_UrlRequestPtr request = Cronet_UrlRequest_Create();
@@ -145,7 +146,9 @@ int main() {
     std::cout << "start request" << std::endl;
     
     // 7. 等待请求完成（简化演示，实际应用需事件循环）
-    std::this_thread::sleep_for(std::chrono::seconds(50));
+    for (int i = 0; i < 10; ++i) {
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+    }
     
     std::cout << "request done" << std::endl;
     // 8. 清理资源

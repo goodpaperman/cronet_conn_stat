@@ -10,6 +10,8 @@
 #include <functional>
 
 // #define DISABLE_EXECUTOR_THREAD
+// #define REQUEST_BATCH
+
 std::map<Cronet_UrlResponseInfoPtr, Cronet_UrlRequestPtr> rr_map; 
 
 // 回调函数签名修正
@@ -251,19 +253,38 @@ int main() {
     }
 
     // 6. 创建并启动请求
+#ifdef REQUEST_BATCH
+    const int REQ_CNT = 2; 
+    Cronet_UrlRequestPtr request[REQ_CNT]; 
+    for (int i=0; i<REQ_CNT; ++ i) {
+        request[i] = Cronet_UrlRequest_Create();
+        Cronet_UrlRequest_InitWithParams(request[i], engine, 
+                "http://httpbin.org/json", 
+                req_params, callback, executor);
+        Cronet_UrlRequest_Start(request[i]);
+    }
+#else 
     Cronet_UrlRequestPtr request = Cronet_UrlRequest_Create();
     Cronet_UrlRequest_InitWithParams(request, engine, 
                                      "http://httpbin.org/json", 
                                      req_params, callback, executor);
     Cronet_UrlRequest_Start(request);
+#endif
     // std::cout << "start request" << std::endl;
+    
     
     // 7. 等待请求完成（简化演示，实际应用需事件循环）
     std::this_thread::sleep_for(std::chrono::seconds(15));
     
     // std::cout << "request done" << std::endl;
     // 8. 清理资源
+#ifdef REQUEST_BATCH
+    for (int i=0; i<REQ_CNT; ++ i) { 
+        Cronet_UrlRequest_Destroy(request[i]);
+    }
+#else
     Cronet_UrlRequest_Destroy(request);
+#endif
     Cronet_HttpHeader_Destroy(header);
     Cronet_UrlRequestParams_Destroy(req_params);
     Cronet_UrlRequestCallback_Destroy(callback);

@@ -9,6 +9,7 @@
 #include <atomic>
 #include <functional>
 
+// #define DISABLE_EXECUTOR_THREAD
 std::map<Cronet_UrlResponseInfoPtr, Cronet_UrlRequestPtr> rr_map; 
 
 // 回调函数签名修正
@@ -101,7 +102,7 @@ void on_request_finished_listener(
             int64_t start_ms = Cronet_DateTime_value_get(start);
             int64_t end_ms = Cronet_DateTime_value_get(end);
             connect = (start_ms > 0 && end_ms > 0) ? (end_ms - start_ms) : 0;
-            std::cout << "has metrics, connect = " << connect << std::endl; 
+            // std::cout << "has metrics, connect = " << connect << std::endl; 
         }
     }
     else {
@@ -119,6 +120,8 @@ void on_request_finished_listener(
     }
 }
 
+
+#ifndef DISABLE_EXECUTOR_THREAD
 std::atomic<bool> request_completed{false};
 
 // 任务队列和线程管理
@@ -199,6 +202,8 @@ void custom_executor_func(Cronet_Executor *executor, Cronet_Runnable *cronet_tas
     }
 }
 
+#endif // DISABLE_EXECUTOR_THREAD
+
 int main() {
     // 1. 创建引擎
     Cronet_EnginePtr engine = Cronet_Engine_Create();
@@ -226,9 +231,14 @@ int main() {
     Cronet_UrlRequestParams_request_headers_add(req_params, header);
     
     // 4. 创建执行器
+#ifdef DISABLE_EXECUTOR_THREAD
+    // will crash on first callback arrived, don't know why
+    Cronet_ExecutorPtr executor = Cronet_Executor_CreateWith(NULL);
+#else
     auto executor_thread = new ExecutorThread; 
     Cronet_ExecutorPtr executor = Cronet_Executor_CreateWith(custom_executor_func);
     Cronet_Executor_SetClientContext(executor, executor_thread); 
+#endif
     
     // 5. 创建监听器
     Cronet_RequestFinishedInfoListenerPtr listener = Cronet_RequestFinishedInfoListener_CreateWith(on_request_finished_listener);
@@ -261,7 +271,10 @@ int main() {
         Cronet_Engine_RemoveRequestFinishedListener(engine, listener);
         Cronet_RequestFinishedInfoListener_Destroy(listener);
     }
+
+#ifndef DISABLE_EXECUTOR_THREAD
     delete executor_thread; 
+#endif
     Cronet_Executor_Destroy(executor);
     Cronet_EngineParams_Destroy(params);
     Cronet_Engine_Destroy(engine);

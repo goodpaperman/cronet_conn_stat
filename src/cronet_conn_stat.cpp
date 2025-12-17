@@ -9,7 +9,7 @@
 #include <atomic>
 #include <functional>
 
-// #define DISABLE_EXECUTOR_THREAD
+#define ENABLE_EXECUTOR_THREAD
 // #define REQUEST_BATCH
 
 std::map<Cronet_UrlResponseInfoPtr, Cronet_UrlRequestPtr> rr_map; 
@@ -122,8 +122,7 @@ void on_request_finished_listener(
     }
 }
 
-
-#ifndef DISABLE_EXECUTOR_THREAD
+#ifdef ENABLE_EXECUTOR_THREAD
 
 // 任务队列和线程管理
 class ExecutorThread {
@@ -187,7 +186,7 @@ private:
     }
 };
 
-void custom_executor_func(Cronet_Executor *executor, Cronet_Runnable *cronet_task) {
+void executor_func(Cronet_Executor *executor, Cronet_Runnable *cronet_task) {
     ExecutorThread* et = (ExecutorThread*)Cronet_Executor_GetClientContext(executor); 
     if (!et) {
         std::cerr << "Executor not initialized!" << std::endl;
@@ -203,7 +202,14 @@ void custom_executor_func(Cronet_Executor *executor, Cronet_Runnable *cronet_tas
     }
 }
 
-#endif // DISABLE_EXECUTOR_THREAD
+#else
+
+// Executor
+void executor_func(Cronet_Executor *executor, Cronet_Runnable *runnable) {
+    Cronet_Runnable_Run(runnable);
+}
+
+#endif // ENABLE_EXECUTOR_THREAD
 
 int main() {
     // 1. 创建引擎
@@ -232,13 +238,14 @@ int main() {
     Cronet_UrlRequestParams_request_headers_add(req_params, header);
     
     // 4. 创建执行器
-#ifdef DISABLE_EXECUTOR_THREAD
-    // will crash on first callback arrived, don't know why
-    Cronet_ExecutorPtr executor = Cronet_Executor_CreateWith(NULL);
-#else
+#ifdef ENABLE_EXECUTOR_THREAD
     auto executor_thread = new ExecutorThread; 
-    Cronet_ExecutorPtr executor = Cronet_Executor_CreateWith(custom_executor_func);
+    Cronet_ExecutorPtr executor = Cronet_Executor_CreateWith(executor_func);
     Cronet_Executor_SetClientContext(executor, executor_thread); 
+#else
+    // will crash on first callback arrived if no callback
+    // Cronet_ExecutorPtr executor = Cronet_Executor_CreateWith(NULL);
+    Cronet_ExecutorPtr executor = Cronet_Executor_CreateWith(executor_func);
 #endif
     
     // 5. 创建监听器
@@ -292,7 +299,7 @@ int main() {
         Cronet_RequestFinishedInfoListener_Destroy(listener);
     }
 
-#ifndef DISABLE_EXECUTOR_THREAD
+#ifdef ENABLE_EXECUTOR_THREAD
     delete executor_thread; 
 #endif
     Cronet_Executor_Destroy(executor);

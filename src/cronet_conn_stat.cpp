@@ -124,7 +124,6 @@ void on_request_finished_listener(
 
 
 #ifndef DISABLE_EXECUTOR_THREAD
-std::atomic<bool> request_completed{false};
 
 // 任务队列和线程管理
 class ExecutorThread {
@@ -259,14 +258,14 @@ int main() {
     for (int i=0; i<REQ_CNT; ++ i) {
         request[i] = Cronet_UrlRequest_Create();
         Cronet_UrlRequest_InitWithParams(request[i], engine, 
-                "http://httpbin.org/json", 
+                "http://httpbin.org/json",  
                 req_params, callback, executor);
         Cronet_UrlRequest_Start(request[i]);
     }
 #else 
     Cronet_UrlRequestPtr request = Cronet_UrlRequest_Create();
     Cronet_UrlRequest_InitWithParams(request, engine, 
-                                     "http://httpbin.org/json", 
+                                     "http://httpbin.org/get", 
                                      req_params, callback, executor);
     Cronet_UrlRequest_Start(request);
 #endif
